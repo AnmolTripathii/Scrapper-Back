@@ -72,36 +72,46 @@ async function scrapeWebsite(url) {
 }
 
 const generateAndSave = asyncHandler(async (req, res) => {
-    const { url } = req.body
+    const { url } = req.body;
+
     if (!url) {
-        throw new ApiError(400, "An Url is required")
+        throw new ApiError(400, "A URL is required");
     }
-    const data = await scrapeWebsite(url)
-    if (!data) {
-        console.log("Error scrapping data")
-        throw new ApiError(400, "Error scrapping data")
+
+    try {
+        const data = await scrapeWebsite(url);
+        
+        if (!data) {
+            throw new ApiError(400, "Error scraping data");
+        }
+
+        const web = await Web.create({
+            name: data.name,
+            description: data.description,
+            logo: data?.companyLogo || "",
+            facebook: data?.facebookURL || "",
+            linkedin: data?.linkedinURL || "",
+            twitter: data?.twitterURL || "",
+            instagram: data?.instagramURL || "",
+            address: data?.address || "",
+            phone: data?.phoneNumber || "",
+            email: data?.email || "",
+            screenshot: data?.screenshot || ""
+        });
+
+        const createdWeb = await Web.findById(web._id);
+
+        if (!createdWeb) {
+            throw new ApiError(500, "Something went wrong during the scraping");
+        }
+
+        return res.status(201).json(new ApiResponse(200, createdWeb, "Data scraped successfully. Please refresh."));
+    } catch (error) {
+        console.error("Error in generateAndSave:", error);
+        throw new ApiError(500, "Internal server error occurred");
     }
-    const web = await Web.create({
-        name: data.name,
-        description: data.description,
-        logo: data?.companyLogo || "",
-        facebook: data?.facebookURL || "",
-        linkedin: data?.linkedinURL || "",
-        twitter: data?.twitterURL || "",
-        instagram: data?.instagramURL || "",
-        address: data?.address || "",
-        phone: data?.phoneNumber || "",
-        email: data?.email || "",
-        screenshot: data?.screenshot || ""
-    })
-    const createdWeb = await Web.findById(web._id)
-    if (!createdWeb) {
-        throw new ApiError(500, "Something went wrong during the scrapping")
-    }
-    return res.status(201).json(
-        new ApiResponse(200, createdWeb, "Data Scrapped Please Refresh")
-    )
-})
+});
+
 
 const generateAll= asyncHandler(async(req,res)=>{
     const allData = await Web.find({}).sort({ createdAt: -1 }); 
