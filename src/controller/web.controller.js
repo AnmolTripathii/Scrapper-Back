@@ -14,29 +14,21 @@ async function scrapeWebsite(url) {
     try {
         const browser = await puppeteer.launch();
         const page = await browser.newPage();
-        await page.goto(url);
+        await page.goto(url, { waitUntil: 'networkidle2' });
 
-        // Generate unique names for screenshots using a timestamp
         const timestamp = Date.now();
         const screenshotPath = path.resolve('public/temp', `screenshot_${timestamp}.png`);
         const resizedScreenshotPath = path.resolve('public/temp', `screenshot_resized_${timestamp}.png`);
 
-        // Take a screenshot
-        await page.screenshot({ path: screenshotPath});
-
-        // Get the page content
+        await page.screenshot({ path: screenshotPath });
         const content = await page.content();
         await browser.close();
 
-        // Load content into cheerio
         const $ = cheerio.load(content);
-
-        // Extract information
-        const name = $('meta[property="og:site_name"]').attr('content') || $('title').text() || $('h1').first().text();;
+        const name = $('meta[property="og:site_name"]').attr('content') || $('title').text() || $('h1').first().text();
         const description = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || $('p').first().text();
         let companyLogo = $('meta[property="og:image"]').attr('content');
 
-        // Check for favicon if company logo is not found
         if (!companyLogo) {
             companyLogo = $('link[rel="icon"]').attr('href') || $('link[rel="shortcut icon"]').attr('href');
             if (companyLogo && !companyLogo.startsWith('http')) {
@@ -44,44 +36,41 @@ async function scrapeWebsite(url) {
                 companyLogo = `${urlObj.origin}${companyLogo}`;
             }
         }
-        const facebookURL = $('a[href*="facebook.com"]').attr('href');
-        const linkedinURL = $('a[href*="linkedin.com"]').attr('href');
-        const twitterURL = $('a[href*="twitter.com"]').attr('href');
-        const instagramURL = $('a[href*="instagram.com"]').attr('href');
+
+        const socialMedia = {
+            facebookURL: $('a[href*="facebook.com"]').attr('href'),
+            linkedinURL: $('a[href*="linkedin.com"]').attr('href'),
+            twitterURL: $('a[href*="twitter.com"]').attr('href'),
+            instagramURL: $('a[href*="instagram.com"]').attr('href')
+        };
         const address = $('[itemprop="address"]').text();
         const phoneNumber = $('[itemprop="telephone"]').text() || $('a[href^="tel:"]').text();
         const email = $('a[href^="mailto:"]').attr('href') ? $('a[href^="mailto:"]').attr('href').replace('mailto:', '') : null;
 
-        // Resize the screenshot
         await sharp(screenshotPath)
             .resize(800)
             .toFile(resizedScreenshotPath);
 
-        // Upload the screenshot to Cloudinary
-        const uploadResult = await uploadOnCloudinary(resizedScreenshotPath)
+        const uploadResult = await uploadOnCloudinary(resizedScreenshotPath);
 
-        // Output the results
         const result = {
             name,
             description,
             companyLogo,
-            facebookURL,
-            linkedinURL,
-            twitterURL,
-            instagramURL,
+            ...socialMedia,
             address,
             phoneNumber,
             email,
             screenshot: uploadResult.url
         };
 
-        console.log(result);
         return result;
     } catch (error) {
-        console.log("Error scrapping error", error)
-
+        console.error("Error scraping website:", error);
+        throw new ApiError(500, "Error scraping website");
     }
 }
+
 const generateAndSave = asyncHandler(async (req, res) => {
     const { url } = req.body
     if (!url) {
