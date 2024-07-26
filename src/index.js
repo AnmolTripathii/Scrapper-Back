@@ -14,7 +14,3 @@ connectDB()
 .catch((err)=>{
     console.log("MONGO db connection failed !!!",err)
 })
-
-app.get("/", (req, res) => {
-    res.send("Express app is running");
-});
